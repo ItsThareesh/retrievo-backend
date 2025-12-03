@@ -22,11 +22,8 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 60  # 1 day
 
 
-class GoogleAuthPayload(BaseModel):
-    email: str
-    name: str
-    picture: str
-    google_id: str
+class GoogleIDToken(BaseModel):
+    id_token: str
 
 
 class TokenResponse(BaseModel):
@@ -35,9 +32,9 @@ class TokenResponse(BaseModel):
 
 
 @router.post("/google", response_model=TokenResponse)
-def google_auth(payload: str, session: Session = Depends(get_session)):
+def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session)):
     try:
-        idinfo = id_token.verify_oauth2_token(payload, grequests.Request(), CLIENT_ID)
+        idinfo = id_token.verify_oauth2_token(payload.id_token, grequests.Request(), CLIENT_ID)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Google ID token")
 
