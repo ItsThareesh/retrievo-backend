@@ -62,8 +62,6 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
     jwt_payload = {
         "sub": str(db_user.id),
         "public_id": db_user.public_id,
-        "name": db_user.name,
-        "profile_picture": db_user.profile_picture,
         "role": db_user.role,
         "iat": datetime.now(timezone.utc),
         "exp": expiry,

@@ -35,15 +35,18 @@ async def get_my_items(
 
 
 @router.get("/found-items")
-async def get_my_found_items(
+async def get_my_found_items_by_cat(
     category: str,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    query = select(FoundItem).where(FoundItem.user_id == current_user["sub"]).where(FoundItem.category == 'others')
+    query = (
+        select(FoundItem)
+        .where(FoundItem.user_id == current_user["sub"])
+        .where(FoundItem.category == category)
+        .order_by(FoundItem.created_at.desc())
+    )
 
-    found_items = session.exec(
-        query.order_by(FoundItem.created_at.desc())
-    ).all()
+    items = session.exec(query).all()
 
-    return found_items
+    return items

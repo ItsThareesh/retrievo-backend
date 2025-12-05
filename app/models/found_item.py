@@ -11,9 +11,8 @@ class FoundItem(SQLModel, table=True):
 
     # Finder info
     user_id: int = Field(foreign_key="users.id")
-    reporter_public_id: str
+    reporter_public_id: str  # For URL Linking
     reporter_name: str
-    reporter_picture: str
 
     # Item fields
     title: str
