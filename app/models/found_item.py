@@ -21,3 +21,4 @@ class FoundItem(SQLModel, table=True):
     location: str
     type: str = Field(default="found")
     date: datetime
+    image: str

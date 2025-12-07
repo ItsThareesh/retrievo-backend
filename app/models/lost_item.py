@@ -21,3 +21,4 @@ class LostItem(SQLModel, table=True):
     location: str
     type: str = Field(default="lost")
     date: datetime
+    image: str
