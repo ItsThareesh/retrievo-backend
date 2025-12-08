@@ -6,7 +6,7 @@ from app.db.db import get_session
 from app.models.found_item import FoundItem
 from app.models.lost_item import LostItem
 from app.models.user import User
-from app.utils.auth_helper import get_current_user
+from app.utils.auth_helper import get_current_user_optional, get_user_hostel
 from app.utils.s3_service import compress_image, generate_signed_url, get_all_urls, upload_to_s3
 
 
@@ -26,7 +26,7 @@ async def add_item(
     location: str = Form(...),
     image: UploadFile = File(...),
     session: Session = Depends(get_session),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user_optional),
 ):
     # user lookup
     user = session.exec(
@@ -84,14 +84,26 @@ async def add_item(
 
 
 @router.get("/all")
-async def get_all_items(session: Session = Depends(get_session)):
-    lost_items = session.exec(
-        select(LostItem).order_by(LostItem.created_at.desc())
-    ).all()
-    found_items = session.exec(
-        select(FoundItem).order_by(FoundItem.created_at.desc())
-    ).all()
+async def get_all_items(
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
+):
+    # Get user's hostel if logged in
+    hostel = get_user_hostel(current_user, session)
 
+    lost_query = select(LostItem).order_by(LostItem.created_at.desc())
+    found_query = select(FoundItem).order_by(FoundItem.created_at.desc())
+
+    # apply visibility filters based on user's hostel
+    if hostel:
+        lost_query = lost_query.where((LostItem.visibility == hostel) | (LostItem.visibility == 'public'))
+        found_query = found_query.where((FoundItem.visibility == hostel) | (FoundItem.visibility == 'public'))
+
+    # fetch items
+    lost_items = session.exec(lost_query).all()
+    found_items = session.exec(found_query).all()
+
+    # get urls
     lost_items_response = get_all_urls(lost_items)
     found_items_response = get_all_urls(found_items)
 
@@ -106,24 +118,33 @@ async def get_item(
     item_id: str,
     item_type: str,
     session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
 ):
+    # Get user's hostel if logged in
+    hostel = get_user_hostel(current_user, session)
+
+    # check for valid types
     if item_type not in ["lost", "found"]:
         raise HTTPException(400, "Invalid item type")
 
+    # decide type based on item_type
     Type = LostItem if item_type == "lost" else FoundItem
 
-    statement = (
+    query = (
         select(Type, User)
         .join(User, User.id == Type.user_id)
         .where(Type.id == item_id)
     )
 
-    result = session.exec(statement).first()
-
+    result = session.exec(query).first()
     if not result:
         raise HTTPException(404, f"{item_type.capitalize()} item not found")
 
     item, user = result
+
+    # check visibility rules
+    if item.visibility != "public" and item.visibility != hostel:
+        raise HTTPException(403, f"Unauthorized to view this {item_type} item")
 
     item_dict = item.model_dump()
     item_dict["image"] = generate_signed_url(item.image)

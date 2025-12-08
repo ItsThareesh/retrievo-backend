@@ -15,4 +15,4 @@ class User(SQLModel, table=True):
     email: str
 
     role: str = Field(default="user")  # Possible roles: user, admin
-    gender: str = Field(default="unspecified")  # Possible values: male, female
+    hostel: Optional[str] = Field(default=None)  # Possible values: boys, girls

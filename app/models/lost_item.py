@@ -22,3 +22,4 @@ class LostItem(SQLModel, table=True):
     type: str = Field(default="lost")
     date: datetime
     image: str
+    visibility: str = Field(default="public")  # public/boys/girls

@@ -22,3 +22,4 @@ class FoundItem(SQLModel, table=True):
     type: str = Field(default="found")
     date: datetime
     image: str
+    visibility: str = Field(default="public")  # public/boys/girls

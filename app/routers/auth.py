@@ -52,6 +52,7 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
             image=picture,
             email=email,
             role="user",
+            hostel=None,
         )
         session.add(db_user)
         session.commit()
@@ -71,5 +72,5 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
 
     return TokenResponse(
         access_token=token,
-        user_id=str(db_user.id),
+        user_id=str(db_user.id)
     )
