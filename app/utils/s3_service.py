@@ -44,20 +44,16 @@ def compress_image(data: bytes, max_width=1400, quality=80):
         mime = "image/jpeg"
 
     buffer.seek(0)
-    return buffer, ext, mime
+    return buffer, ext
 
 
-def upload_to_s3(buffer: io.BytesIO, ext: str, mime: str, original_name: str):
+def upload_to_s3(buffer: io.BytesIO, ext: str, original_name: str):
     base = os.path.splitext(os.path.basename(original_name))[0]
 
     ts = int(datetime.now(timezone.utc).timestamp())
     key = f"{FOLDER}/{base}-{ts}.{ext}"
 
-    s3.upload_fileobj(
-        buffer,
-        BUCKET,
-        key,
-    )
+    s3.upload_fileobj(buffer, BUCKET, key)
 
     return key
 

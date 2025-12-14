@@ -68,25 +68,25 @@ async def get_my_items(
     }
 
 
-@router.get("/found-items")
-async def get_my_found_items_by_cat(
-    category: str,
-    session: Session = Depends(get_session),
-    current_user=Depends(get_current_user_required),
-):
-    query = (
-        select(Item)
-        .where(Item.user_id == current_user["sub"])
-        .where(Item.type == "found")
-        .where(Item.category == category)
-        .order_by(Item.created_at.desc())
-    )
+# @router.get("/found-items")
+# async def get_my_found_items_by_cat(
+#     category: str,
+#     session: Session = Depends(get_session),
+#     current_user=Depends(get_current_user_required),
+# ):
+#     query = (
+#         select(Item)
+#         .where(Item.user_id == current_user["sub"])
+#         .where(Item.type == "found")
+#         .where(Item.category == category)
+#         .order_by(Item.created_at.desc())
+#     )
 
-    items = session.exec(query).all()
+#     items = session.exec(query).all()
 
-    items_response = get_all_urls(items)
+#     items_response = get_all_urls(items)
 
-    return items_response
+#     return items_response
 
 
 @router.get("/{public_id}")

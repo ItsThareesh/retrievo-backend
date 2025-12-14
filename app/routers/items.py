@@ -23,6 +23,7 @@ async def add_item(
     category: str = Form(...),
     date: str = Form(...),
     location: str = Form(...),
+    visibility: str = Form(...),
     image: UploadFile = File(...),
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_optional),
@@ -47,8 +48,8 @@ async def add_item(
     if len(raw_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail=f"Image exceeds {MAX_UPLOAD_SIZE_MB}MB limit")
 
-    buffer, ext, mime = compress_image(raw_bytes)
-    s3_key = upload_to_s3(buffer, ext, mime, image.filename)
+    buffer, ext = compress_image(raw_bytes)
+    s3_key = upload_to_s3(buffer, ext, image.filename)
 
     # check for valid types
     if item_type not in ["lost", "found"]:
@@ -57,7 +58,6 @@ async def add_item(
     # clean strings
     title = title.strip()
     description = description.strip()
-    category = category.strip()
     location = location.strip()
 
     # create DB item
@@ -71,6 +71,7 @@ async def add_item(
         date=parsed_date,
         location=location,
         type=item_type,
+        visibility=visibility,
         image=s3_key,
     )
 
