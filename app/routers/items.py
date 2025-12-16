@@ -30,7 +30,7 @@ async def add_item(
 ):
     # user lookup
     user = session.exec(
-        select(User).where(User.public_id == current_user["public_id"])
+        select(User).where(User.id == current_user["sub"])
     ).first()
 
     if not user:
@@ -54,6 +54,12 @@ async def add_item(
     # check for valid types
     if item_type not in ["lost", "found"]:
         raise HTTPException(400, "Invalid item type")
+    
+    if visibility not in ["public", "boys", "girls"]:
+        raise HTTPException(400, "Invalid visibility option")
+
+    if category not in [ "electronics", "clothing", "bags", "keys-wallets", "documents", "others"]:
+        raise HTTPException(400, "Invalid category option")
 
     # clean strings
     title = title.strip()
@@ -63,8 +69,6 @@ async def add_item(
     # create DB item
     db_item = Item(
         user_id=user.id,
-        reporter_public_id=user.public_id,
-        reporter_name=user.name,
         title=title,
         description=description,
         category=category,
@@ -147,6 +151,8 @@ async def get_item(
     return {
         "item": item_dict,
         "reporter": {
+            "public_id": user.public_id,
+            "name": user.name,
             "image": user.image,
         }
     }

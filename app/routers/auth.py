@@ -25,10 +25,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 60  # 1 day
 class GoogleIDToken(BaseModel):
     id_token: str
 
-
 class TokenResponse(BaseModel):
     access_token: str
-    user_id: str
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -70,7 +68,4 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
 
     token = jwt.encode(jwt_payload, SECRET_KEY, algorithm=ALGORITHM)
 
-    return TokenResponse(
-        access_token=token,
-        user_id=str(db_user.id)
-    )
+    return TokenResponse(access_token=token)
