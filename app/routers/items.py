@@ -5,8 +5,8 @@ from datetime import datetime
 from app.db.db import get_session
 from app.models.item import Item
 from app.models.user import User
-from app.utils.auth_helper import get_current_user_optional, get_user_hostel
-from app.utils.s3_service import compress_image, generate_signed_url, get_all_urls, upload_to_s3
+from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_user_hostel
+from app.utils.s3_service import compress_image, delete_s3_object, generate_signed_url, get_all_urls, upload_to_s3
 
 
 router = APIRouter()
@@ -26,11 +26,11 @@ async def add_item(
     visibility: str = Form(...),
     image: UploadFile = File(...),
     session: Session = Depends(get_session),
-    current_user=Depends(get_current_user_optional),
+    current_user=Depends(get_current_user_required),
 ):
     # user lookup
     user = session.exec(
-        select(User).where(User.public_id == current_user["public_id"])
+        select(User).where(User.id == current_user["sub"])
     ).first()
 
     if not user:
@@ -54,6 +54,12 @@ async def add_item(
     # check for valid types
     if item_type not in ["lost", "found"]:
         raise HTTPException(400, "Invalid item type")
+    
+    if visibility not in ["public", "boys", "girls"]:
+        raise HTTPException(400, "Invalid visibility option")
+
+    if category not in [ "electronics", "clothing", "bags", "keys-wallets", "documents", "others"]:
+        raise HTTPException(400, "Invalid category option")
 
     # clean strings
     title = title.strip()
@@ -63,8 +69,6 @@ async def add_item(
     # create DB item
     db_item = Item(
         user_id=user.id,
-        reporter_public_id=user.public_id,
-        reporter_name=user.name,
         title=title,
         description=description,
         category=category,
@@ -90,7 +94,7 @@ async def get_all_items(
     # Get user's hostel if logged in
     hostel = get_user_hostel(current_user, session)
 
-    # Query all items with visibility filter
+    # Query all items
     query = select(Item).order_by(Item.created_at.desc())
 
     # apply visibility filters based on user's hostel
@@ -102,50 +106,37 @@ async def get_all_items(
     # fetch items
     items = session.exec(query).all()
 
-    # separate by type
-    lost_items = [item for item in items if item.type == "lost"]
-    found_items = [item for item in items if item.type == "found"]
-
-    # get urls
-    lost_items_response = get_all_urls(lost_items)
-    found_items_response = get_all_urls(found_items)
+    items_response = get_all_urls(items)
 
     return {
-        "lost_items": lost_items_response,
-        "found_items": found_items_response,
+        "items": items_response,
     }
 
 
-@router.get("/{item_id}/{item_type}")
+@router.get("/{item_id}")
 async def get_item(
     item_id: str,
-    item_type: str,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
     hostel = get_user_hostel(current_user, session)
 
-    # check for valid types
-    if item_type not in ["lost", "found"]:
-        raise HTTPException(400, "Invalid item type")
-
     query = (
         select(Item, User)
         .join(User, User.id == Item.user_id)
         .where(Item.id == item_id)
-        .where(Item.type == item_type)
     )
 
     result = session.exec(query).first()
     if not result:
-        raise HTTPException(404, f"{item_type.capitalize()} item not found")
+        raise HTTPException(404, "Item not found")
 
     item, user = result
 
     # check visibility rules
     if item.visibility != "public" and item.visibility != hostel:
-        raise HTTPException(403, f"Unauthorized to view this {item_type} item")
+        raise HTTPException(403, "Unauthorized to view this item")
 
     item_dict = item.model_dump()
     item_dict["image"] = generate_signed_url(item.image)
@@ -153,6 +144,94 @@ async def get_item(
     return {
         "item": item_dict,
         "reporter": {
+            "public_id": user.public_id,
+            "name": user.name,
             "image": user.image,
         }
     }
+
+
+@router.patch("/{item_id}")
+async def update_item(
+    item_id: str,
+    updates: dict,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_required),
+):
+    item = session.exec(
+        select(Item).where(Item.id == item_id)
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # ownership check
+    if item.user_id != int(current_user["sub"]):
+        raise HTTPException(
+            status_code=403,
+            detail="Unauthorized to edit this item",
+        )
+
+    ALLOWED_FIELDS = {
+        "title",
+        "location",
+        "description",
+        "category",
+        "visibility",
+        "date",
+    }
+
+    for field, value in updates.items():
+        if field not in ALLOWED_FIELDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Field '{field}' cannot be updated",
+            )
+
+        if field == "date":
+            try:
+                value = datetime.fromisoformat(
+                    value.replace("Z", "+00:00")
+                )
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Date not parseable",
+                )
+        else:
+            value = value.strip()
+
+        setattr(item, field, value)
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    return item.id
+
+@router.delete("/{item_id}")
+async def delete_item(
+    item_id: str,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_required),
+):
+    item = session.exec(
+        select(Item).where(Item.id == item_id)
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # ownership check
+    if item.user_id != int(current_user["sub"]):
+        raise HTTPException(
+            status_code=403,
+            detail="Unauthorized to delete this item",
+        )
+    
+    delete_s3_object(item.image)
+
+    session.delete(item)
+    session.commit()
+
+    return True

@@ -59,15 +59,27 @@ def upload_to_s3(buffer: io.BytesIO, ext: str, original_name: str):
 
 
 def generate_signed_url(key: str, expires_in=3600):
-    return s3.generate_presigned_url(
-        "get_object",
-        Params={"Bucket": BUCKET, "Key": key},
-        ExpiresIn=expires_in
-    )
+    try:
+        return s3.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": BUCKET, "Key": key},
+                ExpiresIn=expires_in
+            )
+    except Exception as e:
+        print(f"Error generating signed URL: {e}")
+        return None
+    
+
+def delete_s3_object(key: str):
+    try:
+        s3.delete_object(Bucket=BUCKET, Key=key)
+    except Exception as e:
+        print(f"Error deleting S3 object {key}: {e}")
 
 
 def get_all_urls(db_items):
     items_response = []
+    
     for item in db_items:
         data = item.model_dump()
         data["image"] = generate_signed_url(item.image)

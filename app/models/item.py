@@ -11,8 +11,6 @@ class Item(SQLModel, table=True):
 
     # Reporter info
     user_id: int = Field(foreign_key="users.id")
-    reporter_public_id: str  # For URL Linking
-    reporter_name: str
 
     # Item fields
     title: str

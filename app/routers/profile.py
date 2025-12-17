@@ -24,6 +24,7 @@ async def set_hostel(
         raise HTTPException(status_code=404, detail="User not found")
 
     user.hostel = hostel
+    
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -68,27 +69,6 @@ async def get_my_items(
     }
 
 
-# @router.get("/found-items")
-# async def get_my_found_items_by_cat(
-#     category: str,
-#     session: Session = Depends(get_session),
-#     current_user=Depends(get_current_user_required),
-# ):
-#     query = (
-#         select(Item)
-#         .where(Item.user_id == current_user["sub"])
-#         .where(Item.type == "found")
-#         .where(Item.category == category)
-#         .order_by(Item.created_at.desc())
-#     )
-
-#     items = session.exec(query).all()
-
-#     items_response = get_all_urls(items)
-
-#     return items_response
-
-
 @router.get("/{public_id}")
 async def get_profile(
     public_id: str,
@@ -111,6 +91,8 @@ async def get_profile(
     # Apply visibility filters based on user's hostel
     if hostel:
         query = query.where((Item.visibility == hostel) | (Item.visibility == 'public'))
+    else:
+        query = query.where(Item.visibility == 'public')
 
     # Fetch items
     items = session.exec(query).all()
