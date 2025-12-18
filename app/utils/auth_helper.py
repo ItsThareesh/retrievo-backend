@@ -37,12 +37,10 @@ def get_user_hostel(current_user, session: Session):
     # user lookup for getting hostel preference
     if current_user:
         user = session.exec(
-            select(User).where(User.id == current_user["sub"])
+            select(User).where(User.public_id == current_user["sub"])
         ).first()
 
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        return user.hostel
+        if user:
+            return user.hostel
 
     return None

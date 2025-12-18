@@ -30,7 +30,7 @@ async def add_item(
 ):
     # user lookup
     user = session.exec(
-        select(User).where(User.id == current_user["sub"])
+        select(User).where(User.public_id == current_user["sub"])
     ).first()
 
     if not user:
@@ -166,7 +166,8 @@ async def update_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    if item.user_id != int(current_user["sub"]):
+    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,
             detail="Unauthorized to edit this item",
@@ -223,7 +224,8 @@ async def delete_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    if item.user_id != int(current_user["sub"]):
+    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,
             detail="Unauthorized to delete this item",

@@ -59,8 +59,7 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
     expiry = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
     jwt_payload = {
-        "sub": str(db_user.id),
-        "public_id": db_user.public_id,
+        "sub": db_user.public_id,
         "role": db_user.role,
         "iat": datetime.now(timezone.utc),
         "exp": expiry,

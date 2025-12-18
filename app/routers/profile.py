@@ -18,7 +18,7 @@ async def set_hostel(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.id == current_user["sub"])).first()
+    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -37,7 +37,7 @@ async def get_my_profile(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.id == current_user["sub"])).first()
+    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -50,9 +50,14 @@ async def get_my_items(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
+    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     items = session.exec(
         select(Item)
-        .where(Item.user_id == current_user["sub"])
+        .where(Item.user_id == user.id)
         .order_by(Item.created_at.desc())
     ).all()
 
