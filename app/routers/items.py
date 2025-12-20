@@ -92,7 +92,7 @@ async def get_all_items(
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
+    hostel = get_user_hostel(session, current_user)
 
     # Query all items
     query = select(Item).order_by(Item.created_at.desc())
@@ -120,7 +120,7 @@ async def get_item(
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
+    hostel = get_user_hostel(session, current_user)
 
     query = (
         select(Item, User)

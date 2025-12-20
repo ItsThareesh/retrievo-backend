@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.params import Depends
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from app.db.db import get_session
 from app.models.item import Item
-from app.models.user import User
-from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_user_hostel
+from app.models.notification import Notification
+from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_db_user, get_user_hostel
 from app.utils.s3_service import get_all_urls
 
 
@@ -18,10 +18,7 @@ async def set_hostel(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = get_db_user(session, current_user)
 
     user.hostel = hostel
     
@@ -37,23 +34,15 @@ async def get_my_profile(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return get_db_user(session, current_user)
 
 
-@router.get("/my-items")
+@router.get("/items")
 async def get_my_items(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = get_db_user(session, current_user)
 
     items = session.exec(
         select(Item)
@@ -76,20 +65,14 @@ async def get_my_items(
 
 @router.get("/{public_id}")
 async def get_profile(
-    public_id: str,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
+    hostel = get_user_hostel(session, current_user)
 
     # Fetch user from ID
-    user = session.exec(
-        select(User).where(User.public_id == public_id)
-    ).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = get_db_user(session, current_user)
 
     query = select(Item).where(Item.user_id == user.id)
 
@@ -119,3 +102,38 @@ async def get_profile(
         "lost_items": lost_items_response,
         "found_items": found_items_response,
     }
+
+
+@router.get("/notifications/count")
+async def get_unread_notifications_count(
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_required),
+):
+    user = get_db_user(session, current_user)
+
+    count = session.exec(
+        select(func.count())
+        .select(Notification)
+        .where(Notification.user_id == user.id)
+        .where(Notification.is_read == False)
+    ).one()
+
+    return { "unread_count": count }
+
+@router.get("/notifications")
+async def get_my_notifications(
+    limit: int = 20,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_required),
+):
+    user = get_db_user(session, current_user)
+
+    notifications = session.exec(
+        select(Notification)
+        .where(Notification.user_id == user.id)
+        .where(Notification.is_read == False)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+    ).all()
+
+    return { "notifications": notifications }
