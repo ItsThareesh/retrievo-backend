@@ -9,9 +9,16 @@ class Resolution(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # Claimant
+    claimant_id: int = Field(foreign_key="users.id", index=True)
+
     # Linked reports
-    lost_item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
     found_item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
+    lost_item_id: Optional[uuid.UUID] = Field(
+        default=None,
+        foreign_key="items.id",
+        index=True,
+    )
 
     status: str = Field(default="pending", index=True) # values: "pending", "approved", "rejected"
 

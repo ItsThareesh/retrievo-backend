@@ -13,7 +13,7 @@ class Notification(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id")
 
     # Notification fields
-    type: str = Field(index=True) # values: "claim_created", "claim_approved", "claim_rejected"
+    type: str = Field(index=True) # values: "claim_created", "claim_approved", "claim_rejected", "system_notice", "ban_warning"
 
     title: str
     message: str

@@ -1,3 +1,4 @@
+import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import Session, select
 from datetime import datetime
@@ -5,7 +6,7 @@ from datetime import datetime
 from app.db.db import get_session
 from app.models.item import Item
 from app.models.user import User
-from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_user_hostel
+from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_db_user, get_user_hostel
 from app.utils.s3_service import compress_image, delete_s3_object, generate_signed_url, get_all_urls, upload_to_s3
 
 
@@ -15,7 +16,7 @@ MAX_UPLOAD_SIZE_MB = 5
 MAX_UPLOAD_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
-@router.post("/")
+@router.post("/create")
 async def add_item(
     item_type: str = Form(...),
     title: str = Form(...),
@@ -237,3 +238,19 @@ async def delete_item(
     session.commit()
 
     return True
+
+@router.get("/{item_id}/claim-status")
+def get_claim_status(
+    item_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
+):
+    # Not logged in, then no claim
+    if not current_user:
+        return {"status": "none"}
+
+    user = get_db_user(session, current_user)
+
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")

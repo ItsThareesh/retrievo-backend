@@ -42,6 +42,9 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
     name = idinfo.get("name")
     picture = idinfo.get("picture")
 
+    # if email.split("@")[-1] != "nitc.ac.in":
+    #     raise HTTPException(status_code=401, detail="Unauthorized domain")
+
     db_user = session.exec(select(User).where(User.public_id == google_id)).first()
     if not db_user:
         db_user = User(

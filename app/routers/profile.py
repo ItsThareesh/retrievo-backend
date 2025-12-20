@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from sqlmodel import Session, select, func
 
@@ -18,7 +18,11 @@ async def set_hostel(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
+
     user = get_db_user(session, current_user)
+
+    if hostel not in ['boys', 'girls']:
+        raise HTTPException(status_code=400, detail="Invalid hostel option")
 
     user.hostel = hostel
     

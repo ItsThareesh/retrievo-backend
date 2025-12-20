@@ -50,8 +50,6 @@ def get_db_user(session: Session, current_user):
         select(User).where(User.public_id == current_user["sub"])
     ).first()
 
-    print(user)
-
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
