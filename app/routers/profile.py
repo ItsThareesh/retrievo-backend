@@ -113,38 +113,3 @@ async def get_profile(
         "lost_items": lost_items_response,
         "found_items": found_items_response,
     }
-
-
-@router.get("/notifications/count")
-async def get_unread_notifications_count(
-    session: Session = Depends(get_session),
-    current_user=Depends(get_current_user_required),
-):
-    user = get_db_user(session, current_user)
-
-    count = session.exec(
-        select(func.count())
-        .select(Notification)
-        .where(Notification.user_id == user.id)
-        .where(Notification.is_read == False)
-    ).one()
-
-    return { "unread_count": count }
-
-@router.get("/notifications")
-async def get_my_notifications(
-    limit: int = 20,
-    session: Session = Depends(get_session),
-    current_user=Depends(get_current_user_required),
-):
-    user = get_db_user(session, current_user)
-
-    notifications = session.exec(
-        select(Notification)
-        .where(Notification.user_id == user.id)
-        .where(Notification.is_read == False)
-        .order_by(Notification.created_at.desc())
-        .limit(limit)
-    ).all()
-
-    return { "notifications": notifications }
