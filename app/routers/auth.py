@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from jose import jwt
+from jose import JWTError, jwt
 from sqlmodel import Session, select
 from google.oauth2 import id_token
 from google.auth.transport import requests as grequests
@@ -27,6 +27,11 @@ class GoogleIDToken(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    expires_at: int  # Unix timestamp
+
+
+class RefreshTokenRequest(BaseModel):
+    token: str
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -41,6 +46,9 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
     email = idinfo.get("email")
     name = idinfo.get("name")
     picture = idinfo.get("picture")
+
+    # if email.split("@")[-1] != "nitc.ac.in":
+    #     raise HTTPException(status_code=401, detail="Unauthorized domain")
 
     db_user = session.exec(select(User).where(User.public_id == google_id)).first()
     if not db_user:
@@ -67,4 +75,41 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
 
     token = jwt.encode(jwt_payload, SECRET_KEY, algorithm=ALGORITHM)
 
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=token, expires_at=int(expiry.timestamp()))
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_token(payload: RefreshTokenRequest, session: Session = Depends(get_session)):
+    """
+    Refresh an existing JWT token.
+    Validates the current token and issues a new one if it's still valid.
+    """
+    try:
+        # Decode the existing token (this will fail if token is invalid or expired)
+        decoded = jwt.decode(payload.token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Get the user from the database
+        google_id = decoded.get("sub")
+        if not google_id:
+            raise HTTPException(status_code=401, detail="Invalid token structure")
+        
+        db_user = session.exec(select(User).where(User.public_id == google_id)).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Create a new token with fresh expiration
+        expiry = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        
+        jwt_payload = {
+            "sub": db_user.public_id,
+            "role": db_user.role,
+            "iat": datetime.now(timezone.utc),
+            "exp": expiry,
+        }
+        
+        new_token = jwt.encode(jwt_payload, SECRET_KEY, algorithm=ALGORITHM)
+        
+        return TokenResponse(access_token=new_token, expires_at=int(expiry.timestamp()))
+        
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")

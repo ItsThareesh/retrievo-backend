@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, items, profile
+from app.routers import auth, items, notifications, profile, resolutions
 
 app = FastAPI()
 
@@ -17,6 +17,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(profile.router, prefix="/profile", tags=["Profile"])
 app.include_router(items.router, prefix="/items", tags=["Items"])
+app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+app.include_router(resolutions.router, prefix="/resolutions", tags=["Resolutions"])
 
 
 @app.get("/")

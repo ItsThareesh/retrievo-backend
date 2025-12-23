@@ -33,7 +33,7 @@ def get_current_user_required(token: HTTPAuthorizationCredentials = Depends(bear
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-def get_user_hostel(current_user, session: Session):
+def get_user_hostel(session: Session, current_user):
     # user lookup for getting hostel preference
     if current_user:
         user = session.exec(
@@ -44,3 +44,13 @@ def get_user_hostel(current_user, session: Session):
             return user.hostel
 
     return None
+
+def get_db_user(session: Session, current_user):
+    user = session.exec(
+        select(User).where(User.public_id == current_user["sub"])
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user

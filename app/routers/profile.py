@@ -1,11 +1,13 @@
+import uuid
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from app.db.db import get_session
 from app.models.item import Item
+from app.models.notification import Notification
 from app.models.user import User
-from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_user_hostel
+from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_db_user, get_user_hostel
 from app.utils.s3_service import get_all_urls
 
 
@@ -18,10 +20,10 @@ async def set_hostel(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    user = get_db_user(session, current_user)
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if hostel not in ['boys', 'girls']:
+        raise HTTPException(status_code=400, detail="Invalid hostel option")
 
     user.hostel = hostel
     
@@ -37,23 +39,15 @@ async def get_my_profile(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return get_db_user(session, current_user)
 
 
-@router.get("/my-items")
+@router.get("/items")
 async def get_my_items(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    user = get_db_user(session, current_user)
 
     items = session.exec(
         select(Item)
@@ -76,22 +70,25 @@ async def get_my_items(
 
 @router.get("/{public_id}")
 async def get_profile(
-    public_id: str,
+    public_id: uuid.UUID,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_optional),
 ):
+    # Fetch current user from ID
+    user = get_db_user(session, current_user)
+    
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
-
-    # Fetch user from ID
-    user = session.exec(
+    hostel = get_user_hostel(session, current_user)
+    
+    # Fetch profile user
+    profile_user = session.exec(
         select(User).where(User.public_id == public_id)
     ).first()
 
-    if not user:
+    if not profile_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    query = select(Item).where(Item.user_id == user.id)
+    query = select(Item).where(Item.user_id == profile_user.id)
 
     # Apply visibility filters based on user's hostel
     if hostel:

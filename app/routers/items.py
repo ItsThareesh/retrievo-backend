@@ -1,11 +1,13 @@
+import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import Session, select
 from datetime import datetime
 
 from app.db.db import get_session
 from app.models.item import Item
+from app.models.resolution import Resolution
 from app.models.user import User
-from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_user_hostel
+from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_db_user, get_user_hostel
 from app.utils.s3_service import compress_image, delete_s3_object, generate_signed_url, get_all_urls, upload_to_s3
 
 
@@ -15,7 +17,7 @@ MAX_UPLOAD_SIZE_MB = 5
 MAX_UPLOAD_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
-@router.post("/")
+@router.post("/create")
 async def add_item(
     item_type: str = Form(...),
     title: str = Form(...),
@@ -29,12 +31,7 @@ async def add_item(
     current_user=Depends(get_current_user_required),
 ):
     # user lookup
-    user = session.exec(
-        select(User).where(User.public_id == current_user["sub"])
-    ).first()
-
-    if not user:
-        raise HTTPException(404, "Reporter not found")
+    user = get_db_user(session, current_user)
 
     # parse date
     try:
@@ -92,7 +89,7 @@ async def get_all_items(
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
+    hostel = get_user_hostel(session, current_user)
 
     # Query all items
     query = select(Item).order_by(Item.created_at.desc())
@@ -120,7 +117,7 @@ async def get_item(
     current_user=Depends(get_current_user_optional),
 ):
     # Get user's hostel if logged in
-    hostel = get_user_hostel(current_user, session)
+    hostel = get_user_hostel(session, current_user)
 
     query = (
         select(Item, User)
@@ -138,6 +135,18 @@ async def get_item(
     if item.visibility != "public" and item.visibility != hostel:
         raise HTTPException(403, "Unauthorized to view this item")
 
+    # check for existing claim
+    claim_status = "none"
+
+    claim = session.exec(
+        select(Resolution)
+        .where(Resolution.found_item_id == item.id)
+        .where((Resolution.status == "pending") | (Resolution.status == "approved")) # don't send rejection info
+    ).first()
+
+    if claim:
+        claim_status = claim.status
+
     item_dict = item.model_dump()
     item_dict["image"] = generate_signed_url(item.image)
 
@@ -147,7 +156,8 @@ async def get_item(
             "public_id": user.public_id,
             "name": user.name,
             "image": user.image,
-        }
+        },
+        "claim_status": claim_status,
     }
 
 
@@ -166,7 +176,8 @@ async def update_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    user = get_db_user(session, current_user)
+    
     if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,
@@ -224,7 +235,8 @@ async def delete_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    user = get_db_user(session, current_user)
+
     if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,
