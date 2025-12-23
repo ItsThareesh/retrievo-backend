@@ -83,7 +83,7 @@ async def get_profile(
     
     if current_user:
         viewer = session.exec(
-            select(User).where(User.id == int(current_user["sub"]))
+            select(User).where(User.public_id == current_user["sub"])
         ).first()
 
         if viewer:

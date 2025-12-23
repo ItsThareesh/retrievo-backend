@@ -14,7 +14,11 @@ def get_current_user_optional(token: HTTPAuthorizationCredentials = Depends(bear
         return None
 
     try:
-        payload = jwt.decode(token.credentials, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+        payload = jwt.decode(
+            token.credentials, 
+            os.getenv("JWT_SECRET"), 
+            algorithms=["HS256"]
+        )
         return payload
     except JWTError:
         return None
