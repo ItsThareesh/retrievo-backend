@@ -77,7 +77,7 @@ def delete_s3_object(key: str):
         print(f"Error deleting S3 object {key}: {e}")
 
 
-def get_all_urls(db_items):
+def get_all_urls(db_items: list):
     items_response = []
     
     for item in db_items:

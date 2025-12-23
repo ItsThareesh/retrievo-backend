@@ -5,7 +5,6 @@ from sqlmodel import Session, select, func
 
 from app.db.db import get_session
 from app.models.item import Item
-from app.models.notification import Notification
 from app.models.user import User
 from app.utils.auth_helper import get_current_user_optional, get_current_user_required, get_db_user, get_user_hostel
 from app.utils.s3_service import get_all_urls
@@ -59,28 +58,19 @@ async def get_my_items(
     lost_items = [item for item in items if item.type == "lost"]
     found_items = [item for item in items if item.type == "found"]
 
-    lost_items_response = get_all_urls(lost_items)
-    found_items_response = get_all_urls(found_items)
-
     return {
-        "lost_items": lost_items_response,
-        "found_items": found_items_response,
+        "lost_items": get_all_urls(lost_items),
+        "found_items": get_all_urls(found_items),
     }
 
 
 @router.get("/{public_id}")
 async def get_profile(
-    public_id: uuid.UUID,
+    public_id: str,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_optional),
 ):
-    # Fetch current user from ID
-    user = get_db_user(session, current_user)
-    
-    # Get user's hostel if logged in
-    hostel = get_user_hostel(session, current_user)
-    
-    # Fetch profile user
+    # Fetch profile user (the user being viewed)
     profile_user = session.exec(
         select(User).where(User.public_id == public_id)
     ).first()
@@ -88,31 +78,37 @@ async def get_profile(
     if not profile_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Determine viewer's hostel (if logged in)
+    hostel = None
+    
+    if current_user:
+        viewer = session.exec(
+            select(User).where(User.id == int(current_user["sub"]))
+        ).first()
+
+        if viewer:
+            hostel = viewer.hostel
+
+    # Build item query
     query = select(Item).where(Item.user_id == profile_user.id)
 
-    # Apply visibility filters based on user's hostel
     if hostel:
-        query = query.where((Item.visibility == hostel) | (Item.visibility == 'public'))
+        query = query.where((Item.visibility == hostel) | (Item.visibility == "public"))
     else:
-        query = query.where(Item.visibility == 'public')
+        query = query.where(Item.visibility == "public")
 
-    # Fetch items
     items = session.exec(query).all()
 
-    # Separate by type
     lost_items = [item for item in items if item.type == "lost"]
     found_items = [item for item in items if item.type == "found"]
 
-    lost_items_response = get_all_urls(lost_items)
-    found_items_response = get_all_urls(found_items)
-
     return {
         "user": {
-            "name": user.name,
-            "email": user.email,
-            "image": user.image,
-            "created_at": user.created_at,
+            "name": profile_user.name,
+            "email": profile_user.email,
+            "image": profile_user.image,
+            "created_at": profile_user.created_at,
         },
-        "lost_items": lost_items_response,
-        "found_items": found_items_response,
+        "lost_items": get_all_urls(lost_items),
+        "found_items": get_all_urls(found_items),
     }
