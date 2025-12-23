@@ -31,12 +31,7 @@ async def add_item(
     current_user=Depends(get_current_user_required),
 ):
     # user lookup
-    user = session.exec(
-        select(User).where(User.public_id == current_user["sub"])
-    ).first()
-
-    if not user:
-        raise HTTPException(404, "Reporter not found")
+    user = get_db_user(session, current_user)
 
     # parse date
     try:
@@ -136,23 +131,21 @@ async def get_item(
 
     item, user = result
 
-    claim_status = "none"
-
-    if current_user:
-        viewer = get_db_user(session, current_user)
-
-        claim = session.exec(
-            select(Resolution)
-            .where(Resolution.found_item_id == item.id)
-            .where(Resolution.claimant_id == viewer.id)
-        ).first()
-
-        if claim:
-            claim_status = claim.status
-
     # check visibility rules
     if item.visibility != "public" and item.visibility != hostel:
         raise HTTPException(403, "Unauthorized to view this item")
+
+    # check for existing claim
+    claim_status = "none"
+
+    claim = session.exec(
+        select(Resolution)
+        .where(Resolution.found_item_id == item.id)
+        .where((Resolution.status == "pending") | (Resolution.status == "approved")) # don't send rejection info
+    ).first()
+
+    if claim:
+        claim_status = claim.status
 
     item_dict = item.model_dump()
     item_dict["image"] = generate_signed_url(item.image)
@@ -183,7 +176,8 @@ async def update_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    user = get_db_user(session, current_user)
+    
     if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,
@@ -241,7 +235,8 @@ async def delete_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     # ownership check
-    user = session.exec(select(User).where(User.public_id == current_user["sub"])).first()
+    user = get_db_user(session, current_user)
+
     if not user or item.user_id != user.id:
         raise HTTPException(
             status_code=403,

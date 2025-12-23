@@ -29,8 +29,6 @@ async def get_my_notifications(
 
     notifications = session.exec(query).all()
 
-    print(notifications)
-
     return {"notifications": notifications}
 
 @router.get("/count")
@@ -44,7 +42,7 @@ async def get_unread_notifications_count(
         select(func.count(Notification.id))
         .where(Notification.user_id == user.id)
         .where(Notification.is_read == False)
-    ).one()
+    ).first()
 
     return { "count": count }
 

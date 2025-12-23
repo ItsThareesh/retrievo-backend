@@ -10,15 +10,10 @@ class Resolution(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Claimant
-    claimant_id: int = Field(foreign_key="users.id", index=True)
+    claimant_id: int = Field(foreign_key="users.id", index=True) # for sending notifications
 
     # Linked reports
     found_item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
-    lost_item_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="items.id",
-        index=True,
-    )
 
     status: str = Field(default="pending", index=True) # values: "pending", "approved", "rejected"
 

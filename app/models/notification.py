@@ -13,7 +13,7 @@ class Notification(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id")
 
     # Notification fields
-    type: str = Field(index=True) # values: "claim_created", "claim_approved", "claim_rejected", "system_notice", "ban_warning"
+    type: str = Field(index=True) # only for icon selection (Doesn't depict current status of resolution), values: "claim_created", "claim_approved", "claim_rejected", "system_notice", "ban_warning"
 
     title: str
     message: str
@@ -21,6 +21,12 @@ class Notification(SQLModel, table=True):
     item_id: Optional[uuid.UUID] = Field(
         default=None,
         foreign_key="items.id",
+        index=True
+    )
+    
+    resolution_id: Optional[uuid.UUID] = Field(
+        default=None,
+        foreign_key="resolutions.id",
         index=True
     )
     
