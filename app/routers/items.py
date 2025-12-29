@@ -1,5 +1,7 @@
+from typing import Literal, Optional
 import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, Field, field_validator
 from sqlmodel import Session, select
 from datetime import datetime
 
@@ -160,11 +162,35 @@ async def get_item(
         "claim_status": claim_status,
     }
 
+class ItemUpdateSchema(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=30)
+    location: Optional[str] = Field(None, min_length=3, max_length=30)
+    description: Optional[str] = Field(None, min_length=20, max_length=280)
+    category: Optional[Literal["electronics", "clothing", "bags", "keys-wallets", "documents", "others"]] = None
+    visibility: Optional[Literal["public", "boys", "girls"]] = None
+    date: Optional[datetime] = None
+
+    @field_validator("title", "location", "description", "category", mode="before")
+    @classmethod
+    def strip_and_validate_strings(cls, v):
+        if v is None:
+            return v
+
+        if not isinstance(v, str):
+            raise ValueError("Must be a string")
+
+        v = v.strip()
+
+        if v == "":
+            raise ValueError("Field cannot be empty")
+
+        return v
+
 
 @router.patch("/{item_id}")
 async def update_item(
     item_id: str,
-    updates: dict,
+    updates: ItemUpdateSchema,
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
@@ -175,51 +201,26 @@ async def update_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    # ownership check
     user = get_db_user(session, current_user)
-    
     if not user or item.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    update_data = updates.model_dump(exclude_unset=True) # only get provided fields (skip None fields)
+
+    if not update_data:
         raise HTTPException(
-            status_code=403,
-            detail="Unauthorized to edit this item",
+            status_code=400,
+            detail="No fields provided for update",
         )
 
-    ALLOWED_FIELDS = {
-        "title",
-        "location",
-        "description",
-        "category",
-        "visibility",
-        "date",
-    }
-
-    for field, value in updates.items():
-        if field not in ALLOWED_FIELDS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Field '{field}' cannot be updated",
-            )
-
-        if field == "date":
-            try:
-                value = datetime.fromisoformat(
-                    value.replace("Z", "+00:00")
-                )
-            except Exception:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Date not parseable",
-                )
-        else:
-            value = value.strip()
-
+    for field, value in update_data.items():
         setattr(item, field, value)
 
     session.add(item)
     session.commit()
     session.refresh(item)
 
-    return item.id
+    return {"id": item.id}
 
 @router.delete("/{item_id}")
 async def delete_item(
