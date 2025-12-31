@@ -14,11 +14,12 @@ from app.utils.auth_helper import get_current_user_optional, get_current_user_re
 from app.utils.s3_service import compress_image, delete_s3_object, generate_signed_url, get_all_urls, upload_to_s3
 from app.models.report import Report
 from app.models.notification import Notification
+from app.utils.form_validator import validate_create_item_form
 
 
 router = APIRouter()
 
-MAX_UPLOAD_SIZE_MB = 5
+MAX_UPLOAD_SIZE_MB = 3
 MAX_UPLOAD_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
@@ -35,11 +36,15 @@ async def add_item(
     session: Session = Depends(get_session),
     current_user=Depends(get_current_user_required),
 ):
-    # parse date
-    try:
-        parsed_date = datetime.fromisoformat(date.replace("Z", "+00:00"))
-    except:
-        raise HTTPException(400, "Date not parseable")
+    data = validate_create_item_form(
+        item_type=item_type,
+        title=title,
+        description=description,
+        category=category,
+        date=date,
+        location=location,
+        visibility=visibility,
+    )
 
     # read image into memory and upload
     raw_bytes = await image.read()
@@ -50,34 +55,19 @@ async def add_item(
     buffer, ext = compress_image(raw_bytes)
     s3_key = upload_to_s3(buffer, ext, image.filename)
 
-    # check for valid types
-    if item_type not in ["lost", "found"]:
-        raise HTTPException(400, "Invalid item type")
-    
-    if visibility not in ["public", "boys", "girls"]:
-        raise HTTPException(400, "Invalid visibility option")
-
-    if category not in [ "electronics", "clothing", "bags", "keys-wallets", "documents", "others"]:
-        raise HTTPException(400, "Invalid category option")
-
-    # clean strings
-    title = title.strip()
-    description = description.strip()
-    location = location.strip()
-
     # user lookup
     user = get_db_user(session, current_user)
 
     # create DB item
     db_item = Item(
         user_id=user.id,
-        title=title,
-        description=description,
-        category=category,
-        date=parsed_date,
-        location=location,
-        type=item_type,
-        visibility=visibility,
+        title=data.title,
+        description=data.description,
+        category=data.category,
+        date=data.date,
+        location=data.location,
+        type=data.item_type,
+        visibility=data.visibility,
         image=s3_key,
     )
 
