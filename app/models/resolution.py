@@ -13,7 +13,7 @@ class Resolution(SQLModel, table=True):
     claimant_id: int = Field(foreign_key="users.id", index=True) # for sending notifications
 
     # Linked reports
-    found_item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
+    found_item_id: uuid.UUID = Field(foreign_key="items.id", index=True, ondelete="CASCADE")
 
     status: str = Field(default="pending", index=True) # values: "pending", "approved", "rejected"
 

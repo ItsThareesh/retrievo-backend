@@ -13,7 +13,7 @@ class Report(SQLModel, table=True):
     # Reporter info
     user_id: int = Field(foreign_key="users.id")
 
-    item_id: uuid.UUID = Field(foreign_key="items.id", index=True)
+    item_id: uuid.UUID = Field(foreign_key="items.id", index=True, ondelete="CASCADE")
 
     # Report fields
     reason: str
