@@ -164,7 +164,7 @@ class ItemUpdateSchema(BaseModel):
     visibility: Optional[Literal["public", "boys", "girls"]] = None
     date: Optional[datetime] = None
 
-    @field_validator("title", "location", "description", "category", mode="before")
+    @field_validator("title", "location", "description", "category", "visibility", mode="before")
     @classmethod
     def strip_and_validate_strings(cls, v):
         if v is None:

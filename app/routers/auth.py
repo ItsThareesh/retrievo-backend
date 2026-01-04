@@ -57,8 +57,7 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
             name=name,
             image=picture,
             email=email,
-            role="user",
-            hostel=None,
+            role="user",        
         )
         session.add(db_user)
         session.commit()
@@ -68,7 +67,6 @@ def google_auth(payload: GoogleIDToken, session: Session = Depends(get_session))
 
     jwt_payload = {
         "sub": db_user.public_id,
-        "role": db_user.role,
         "iat": datetime.now(timezone.utc),
         "exp": expiry,
     }
@@ -102,7 +100,6 @@ def refresh_token(payload: RefreshTokenRequest, session: Session = Depends(get_s
         
         jwt_payload = {
             "sub": db_user.public_id,
-            "role": db_user.role,
             "iat": datetime.now(timezone.utc),
             "exp": expiry,
         }
